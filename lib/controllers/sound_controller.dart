@@ -1,13 +1,16 @@
 import 'package:assets_audio_player/assets_audio_player.dart';
 import 'package:dearplant_link/constants/music_theme.dart';
 import 'package:dearplant_link/models/music_theme_model.dart';
+import 'package:get/get.dart';
+
+import 'app_data.dart';
 
 var _player = AssetsAudioPlayer.newPlayer();
 
 class SoundController {
   static String soundPath = defaultMusicThemes.soundPath;
 
-  static play() {
+  static play() async {
     _player.open(
       Audio(soundPath),
       autoStart: true,
@@ -17,17 +20,22 @@ class SoundController {
   }
 
   static setVolume(double volume) {
+    // link_dialog.dart timerCallback 함수에서 사용
     _player.setVolume(volume);
   }
 
   static changeMusic(MusicThemeModel m) {
     soundPath = m.soundPath;
     _player.stop();
-    _player.open(
-      Audio(m.soundPath),
-      autoStart: true,
-      showNotification: true,
-    );
+    AppData appData = Get.find<AppData>();
+
+    if (Get.find<AppData>().isMusicPlaying && !(Get.find<AppData>().isMuted)) {
+      _player.open(
+        Audio(m.soundPath),
+        autoStart: true,
+        showNotification: true,
+      );
+    }
   }
 
   static stop() {
