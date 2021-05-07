@@ -288,7 +288,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return TextButton(
       onPressed: () {
         if (gConnectedCharacteristic != null) {
-          List<int> bytes = utf8.encode('recalibrate');
+          List<int> bytes = utf8.encode('recalibrate+water');
           gConnectedCharacteristic?.write(bytes);
         }
       },

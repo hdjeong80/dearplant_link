@@ -2,12 +2,19 @@ import 'dart:async';
 
 import 'package:dearplant_link/ble_example_widgets.dart';
 import 'package:dearplant_link/constants/app_colors.dart';
+import 'package:dearplant_link/constants/music_theme.dart';
 import 'package:dearplant_link/controllers/app_data.dart';
 import 'package:dearplant_link/controllers/bluetooth_controller.dart';
+import 'package:dearplant_link/controllers/http_controller.dart';
 import 'package:dearplant_link/controllers/sound_controller.dart';
+import 'package:dearplant_link/models/music_theme_model.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue/flutter_blue.dart';
 import 'package:get/get.dart';
+
+String moistureString = '';
+int moistureInt = 0;
+int countOfLinefeed = 0;
 
 class LinkDialog extends StatefulWidget {
   @override
@@ -98,6 +105,9 @@ class _LinkDialogState extends State<LinkDialog> {
                                 gConnectedCharacteristic = c;
                                 Timer.periodic(
                                     Duration(milliseconds: 50), _timerCallback);
+                                moistureString = '';
+                                moistureInt = 0;
+                                countOfLinefeed = 0;
                                 c.value.listen(_bluetoothReceiveCallback);
                               }
                             });
@@ -124,22 +134,65 @@ void _bluetoothReceiveCallback(value) {
       return;
     }
 
-    double value = element.toDouble();
-    if (value > 20) {
-      // 터치 데이터가 0~20으로 오기 때문에, 20 이상은 예외처리 (초기에 수분값으로 옴)
-      return;
+    if ((48 < element) && (element < 57)) {
+      // ascii 0~9, moisture data
+      moistureString += String.fromCharCode(element);
+      if (moistureString.length == 3) {
+        MusicThemeModel newMusic;
+        moistureInt = int.parse(moistureString);
+        print('moisture: $moistureInt');
+
+        // 1. 수분값 매핑
+        double moisturePercent = 1 - ((moistureInt - 100) / 400);
+
+        // 2. 0~25: 모닥불, 25~50: 귀뚜라미, 50~75: 새소리, 75~100: 강물
+        if (moisturePercent < 0.25) {
+          newMusic = MusicThemes.fire;
+        } else if (moisturePercent < 0.5) {
+          newMusic = MusicThemes.cricket;
+        } else if (moisturePercent < 0.75) {
+          newMusic = MusicThemes.bird;
+        } else {
+          newMusic = MusicThemes.river;
+        }
+        Get.find<AppData>().selectedMusic = newMusic;
+        SoundController.changeMusic(newMusic);
+
+        HttpController.sendMoistureToServer(
+            deviceId: gConnectedDevice!.name.substring(7, 13),
+            moisture: moisturePercent * 100);
+      }
+    } else if ((0 <= element) && (element < 20)) {
+      // int 0~20, touch data
+
+      if (countOfLinefeed < 2) {
+        // exception: linefeed & carrige return value
+        countOfLinefeed++;
+        return;
+      }
+
+      value = element.toDouble();
+
+      double touchValue =
+          (value / 20).clamp(0, 1); // 0 ~ 20 -> Normalization 0 ~ 1
+      gDelayedVolume = touchValue;
+      if (touchValue > 0.1) {
+        if (appData.isMusicPlaying == false) {
+          appData.isMusicPlaying = true;
+          SoundController.play();
+        }
+      }
+      print('$touchValue, ${appData.isMusicPlaying}');
+    } else {
+      // error data
     }
 
-    double touchValue =
-        (value / 20).clamp(0, 1); // 0 ~ 20 -> Normalization 0 ~ 1
-    gDelayedVolume = touchValue;
-    if (touchValue > 0.1) {
-      if (appData.isMusicPlaying == false) {
-        appData.isMusicPlaying = true;
-        SoundController.play();
-      }
-    }
-    print('$touchValue, ${appData.isMusicPlaying}');
+    // double value = element.toDouble();
+    // element.toString()
+    // if (value > 20) {
+    // print('${element.toString()}}');
+    // return;
+    // }
   });
   return;
 }
